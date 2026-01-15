@@ -1,0 +1,2124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>The Band Survives - A Paleolithic Survival Game</title>
+<!-- jsPDF library for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+body {
+    background-color: #2c2416;
+    color: #e8dcc4;
+    font-family: 'Georgia', serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+#passage {
+    background-color: #3d3426;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    min-height: 400px;
+}
+
+h1 {
+    color: #d4a574;
+    border-bottom: 2px solid #8b6f47;
+    padding-bottom: 10px;
+    font-size: 2em;
+}
+
+h2 {
+    color: #c4956c;
+    margin-top: 1.5em;
+}
+
+.choice {
+    background-color: #4a3f2f;
+    padding: 15px;
+    margin: 15px 0;
+    border-left: 4px solid #8b6f47;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.choice:hover {
+    background-color: #5a4f3f;
+    border-left-color: #d4a574;
+    transform: translateX(5px);
+}
+
+.resources {
+    background-color: #2a1f15;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 20px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.resource-bar {
+    margin: 5px 0;
+}
+
+.resource-label {
+    color: #d4a574;
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.bar {
+    background-color: #1a1410;
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+    border-radius: 10px;
+}
+
+.food-bar { background-color: #8b4513; }
+.tools-bar { background-color: #708090; }
+.morale-bar { background-color: #d4a574; }
+.knowledge-bar { background-color: #8b6f47; }
+
+.insight {
+    background-color: #2a3d2a;
+    border-left: 4px solid #6b8e6b;
+    padding: 12px;
+    margin: 15px 0;
+    font-style: italic;
+    font-size: 0.95em;
+}
+
+.character-intro {
+    background-color: #3a2f25;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+}
+
+.outcome {
+    background-color: #2a2520;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+    border: 2px solid #8b6f47;
+}
+
+a {
+    color: #d4a574;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+a:hover {
+    color: #e8c4a4;
+    text-decoration: underline;
+}
+
+button {
+    background-color: #5a4f3f;
+    color: #e8dcc4;
+    border: 2px solid #8b6f47;
+    padding: 12px 24px;
+    font-size: 1.1em;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px 5px;
+    font-family: 'Georgia', serif;
+}
+
+button:hover {
+    background-color: #6a5f4f;
+    border-color: #d4a574;
+}
+
+.role-card {
+    background-color: #3a2f25;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 2px solid #5a4f3f;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.role-card:hover {
+    border-color: #d4a574;
+    background-color: #4a3f35;
+}
+
+.final-stats {
+    background-color: #2a1f15;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px 0;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+    padding: 8px;
+    background-color: #3d3426;
+    border-radius: 5px;
+}
+</style>
+</head>
+<body>
+<div id="passage"></div>
+
+<script>
+// Game State
+const gameState = {
+    // Session tracking
+    sessionId: Date.now().toString(),
+    sessionStart: Date.now(),
+    
+    // Difficulty settings
+    difficulty: 'normal',
+    difficultyMod: 0,
+    failureMod: 1.0,
+    
+    role: '',
+    food: 60,
+    tools: 65,
+    morale: 70,
+    knowledge: 60,
+    
+    // Story flags
+    mammothHunt: false,
+    splitBand: false,
+    toolInnovation: false,
+    tradedWithNeighbors: false,
+    healedInjury: false,
+    toldStory: false,
+    
+    // Relationships (-2 to +2)
+    tarakRelation: 0,
+    miraRelation: 0,
+    korinRelation: 0,
+    suraRelation: 0,
+    inaRelation: 0,
+    
+    // Act II
+    shelterChoice: '',
+    winterStrategy: '',
+    
+    // Outcome tracking
+    deaths: 0,
+    innovations: [],
+    storiesPreserved: [],
+    
+    // Decision logging for export
+    decisionLog: {
+        mammoth: '',
+        mammothSuccess: null,
+        toolChoice: '',
+        toolSuccess: null,
+        neighborChoice: '',
+        storyChoice: '',
+        shelterSuccess: null,
+        councilChoice: '',
+        councilSuccess: null,
+        knowledgeChoice: ''
+    }
+};
+
+let currentPassage = 'start';
+const passages = {};
+
+// Utility Functions
+function updateResources() {
+    const resourcesDiv = document.getElementById('resources');
+    if (resourcesDiv) {
+        resourcesDiv.innerHTML = `
+            <div class="resource-bar">
+                <div class="resource-label">Food: ${gameState.food}</div>
+                <div class="bar"><div class="bar-fill food-bar" style="width: ${gameState.food}%"></div></div>
+            </div>
+            <div class="resource-bar">
+                <div class="resource-label">Tools: ${gameState.tools}</div>
+                <div class="bar"><div class="bar-fill tools-bar" style="width: ${gameState.tools}%"></div></div>
+            </div>
+            <div class="resource-bar">
+                <div class="resource-label">Morale: ${gameState.morale}</div>
+                <div class="bar"><div class="bar-fill morale-bar" style="width: ${gameState.morale}%"></div></div>
+            </div>
+            <div class="resource-bar">
+                <div class="resource-label">Knowledge: ${gameState.knowledge}</div>
+                <div class="bar"><div class="bar-fill knowledge-bar" style="width: ${gameState.knowledge}%"></div></div>
+            </div>
+        `;
+    }
+}
+
+function changeResource(resource, amount) {
+    gameState[resource] = Math.max(0, Math.min(100, gameState[resource] + amount));
+}
+
+function changeRelationship(npc, amount) {
+    const relationshipKey = npc + 'Relation';
+    gameState[relationshipKey] = Math.max(-2, Math.min(2, gameState[relationshipKey] + amount));
+}
+
+function showPassage(passageName) {
+    currentPassage = passageName;
+    const passage = passages[passageName];
+    if (passage) {
+        document.getElementById('passage').innerHTML = passage();
+        updateResources();
+        window.scrollTo(0, 0);
+    }
+}
+
+function createChoice(text, onClick) {
+    const div = document.createElement('div');
+    div.className = 'choice';
+    div.innerHTML = text;
+    div.onclick = onClick;
+    return div;
+}
+
+// Passage Definitions
+
+passages.start = () => `
+    <h1>The Band Survives</h1>
+    <p style="font-size: 1.2em; font-style: italic; color: #c4956c;">A Paleolithic Survival Story</p>
+    
+    <p>For over 100,000 years, humans lived in small bands of 15-30 people, moving with the seasons, reading the land, and surviving through cooperation, knowledge, and ingenuity.</p>
+    
+    <p>You are about to experience one critical autumn and winter in the life of such a band. Your decisions—and those of your companions—will determine whether your people survive to see spring.</p>
+    
+    <p>This is not a story of "primitive" people struggling in ignorance. It is a story of sophisticated knowledge, careful observation, complex social bonds, and the remarkable adaptability that allowed our ancestors to thrive in environments from grasslands to tundra.</p>
+    
+    <div class="insight">
+        <strong>Archaeological Note:</strong> Evidence from sites across Europe, Africa, and Asia reveals that Paleolithic peoples developed complex tools, created art, cared for their injured and elderly, and maintained oral traditions that could preserve knowledge across generations. Their survival depended on cooperation, expertise, and environmental wisdom that took lifetimes to master.
+    </div>
+    
+    <p><strong>Your choices will reveal the sophistication of Paleolithic life.</strong></p>
+    
+    <h2 style="margin-top: 30px; color: #d4a574;">Choose Your Experience</h2>
+    
+    <div class="choice" onclick="selectDifficulty('story')">
+        <strong>📖 Story Mode - Focus on Learning</strong><br>
+        Higher success rates on risky choices (75-85%). Failures are rare. Best for first playthrough or focusing on Paleolithic life content without frustration. Recommended for understanding the historical context.
+    </div>
+    
+    <div class="choice" onclick="selectDifficulty('normal')">
+        <strong>⚖️ Normal Mode - Balanced Challenge</strong><br>
+        Standard success rates (55-75%). Realistic uncertainty with meaningful consequences. Experience both success and failure. Best for understanding the precarity and adaptability of Paleolithic life. <em>(Default recommended)</em>
+    </div>
+    
+    <div class="choice" onclick="selectDifficulty('challenge')">
+        <strong>💀 Challenge Mode - Test Your Strategy</strong><br>
+        Lower success rates (45-65%). High risk, frequent setbacks. Only for those who want to test optimal decision-making under extreme pressure. Shows why most Paleolithic bands didn't survive.
+    </div>
+    
+    <button onclick="showPassage('roleSelect')">Continue</button>
+`;
+
+function selectDifficulty(level) {
+    gameState.difficulty = level;
+    
+    // Set difficulty modifiers
+    switch(level) {
+        case 'story':
+            gameState.difficultyMod = 0.15; // +15% to all success rates
+            gameState.failureMod = 0.7;     // Failures 30% less severe
+            break;
+        case 'normal':
+            gameState.difficultyMod = 0;     // Standard rates
+            gameState.failureMod = 1.0;      // Standard severity
+            break;
+        case 'challenge':
+            gameState.difficultyMod = -0.15; // -15% to all success rates
+            gameState.failureMod = 1.3;      // Failures 30% more severe
+            break;
+    }
+    
+    showPassage('roleSelect');
+}
+
+window.selectDifficulty = selectDifficulty;
+
+passages.roleSelect = () => `
+    <h1>Choose Your Role</h1>
+    
+    <p>Every member of the band contributes essential skills. Who will you be?</p>
+    
+    <div class="role-card" onclick="selectRole('hunter')">
+        <h2>🏹 Young Hunter</h2>
+        <p><strong>Name:</strong> Arun (20 winters)</p>
+        <p>You've been learning the hunter's craft since childhood—tracking, reading animal signs, understanding migration patterns. You know how to work with stone and wood to create spears and atlatls. The older hunters, especially Tarak, have begun to trust you on important hunts.</p>
+        <p><em>Perspective: You see the world through animal behavior, seasonal movements, and the tools needed to bring down game.</em></p>
+        <p><strong>Bonuses:</strong> +10% hunting success, +5 tools from successful hunts, unique hunting innovations</p>
+    </div>
+    
+    <div class="role-card" onclick="selectRole('gatherer')">
+        <h2>🌿 Experienced Gatherer</h2>
+        <p><strong>Name:</strong> Lira (24 winters)</p>
+        <p>You know which plants heal and which kill, when roots are sweetest and when nuts will fall. Your baskets are woven so tightly they hold water. You've learned processing techniques that make bitter foods edible and fresh foods last through winter. Mira has taught you well.</p>
+        <p><em>Perspective: You understand seasonal cycles, plant processing, preservation, and the steady work that ensures survival.</em></p>
+        <p><strong>Bonuses:</strong> +3 food from gathering, reduced knowledge loss from conservative strategies, plant expertise</p>
+    </div>
+    
+    <div class="role-card" onclick="selectRole('toolmaker')">
+        <h2>🔨 Tool Maker</h2>
+        <p><strong>Name:</strong> Daren (28 winters)</p>
+        <p>You understand stone—how it breaks, which types make the sharpest edges, how to prepare a core for perfect flaking. You know woods, sinews, adhesives. Your hands have created hundreds of tools alongside Korin, and you're always imagining improvements.</p>
+        <p><em>Perspective: You see materials, techniques, and innovations. Every problem is a challenge to solve through better tools.</em></p>
+        <p><strong>Bonuses:</strong> +10% tool innovation success, 25% less tool wear, efficient construction</p>
+    </div>
+    
+    <div class="role-card" onclick="selectRole('elder')">
+        <h2>👴 Elder Storyteller</h2>
+        <p><strong>Name:</strong> Elan (52 winters)</p>
+        <p>You've seen more seasons than most in the band. You remember stories your grandmother told—of great hunts, terrible winters, and lessons learned. You know the old songs that teach children about plants and animals. Your voice carries weight in council alongside Old Sura.</p>
+        <p><em>Perspective: You see patterns across time, understand consequences, and know that wisdom is the band's most precious resource.</em></p>
+        <p><strong>Bonuses:</strong> Stronger relationships with all band members, +3 knowledge from storytelling, leadership wisdom</p>
+    </div>
+`;
+
+function selectRole(role) {
+    gameState.role = role;
+    showPassage('introduction');
+}
+
+window.selectRole = selectRole;
+
+passages.introduction = () => {
+    const roleNames = {
+        hunter: 'Arun',
+        gatherer: 'Lira',
+        toolmaker: 'Daren',
+        elder: 'Elan'
+    };
+    
+    return `
+        <h1>Your Band</h1>
+        
+        <p>You are <strong>${roleNames[gameState.role]}</strong>, and these are your people:</p>
+        
+        <div class="character-intro">
+            <strong>Tarak</strong> (lead hunter, 38 winters) - Experienced tracker with keen eyes. Confident, sometimes impatient. Respects skill and courage.
+        </div>
+        
+        <div class="character-intro">
+            <strong>Mira</strong> (master gatherer, 26 winters) - Knows plants and seasons better than anyone. Practical and steady. Values planning and reliability.
+        </div>
+        
+        <div class="character-intro">
+            <strong>Korin</strong> (tool maker, 32 winters) - Innovative but cautious. Creates the band's spear points, scrapers, and needles. Respects both tradition and innovation.
+        </div>
+        
+        <div class="character-intro">
+            <strong>Old Sura</strong> (elder, 54 winters) - Band's memory and wisdom keeper. Has survived droughts, harsh winters, and great hunts. Her words carry weight.
+        </div>
+        
+        <div class="character-intro">
+            <strong>Ina</strong> (young mother, 22 winters) - Quick-minded and resourceful. Caring for two small children. Sees practical solutions others might miss.
+        </div>
+        
+        <p>Your band also includes ten others—hunters, gatherers, children, and elders—each contributing to your survival.</p>
+        
+        <h2>The Situation</h2>
+        
+        <p>It is <strong>early autumn</strong>. Your band camps in a river valley where you've spent the warm months. The leaves are beginning to turn, and the air carries the first hint of cold.</p>
+        
+        <p>Winter will come soon. Your band must gather enough food, maintain your tools, and make crucial decisions about where and how to survive the cold months ahead.</p>
+        
+        <div class="resources" id="resources"></div>
+        
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Paleolithic bands moved seasonally, following animal migrations and plant availability. Autumn was a critical time—the last chance to gather nuts, hunt game before snow, and prepare winter camps. Success required careful observation, planning, and cooperation.
+        </div>
+        
+        <button onclick="showPassage('actOne_mammoth')">Continue</button>
+    `;
+};
+
+passages.actOne_mammoth = () => `
+    <h1>Dawn Breaks - The Mammoth Question</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>You wake to excited whispers. Tarak, the lead tracker, has found mammoth signs near the northern ridge—fresh dung, broken branches at shoulder height. The herd passed through yesterday.</p>
+    
+    <p>But there's tension. Mira spent two days locating a grove of ripe hazelnuts three valleys south. The nuts will fall within days, and gathering them requires most of the band. Autumn is short; winter comes fast to these mountains.</p>
+    
+    <p>Korin pulls you aside: "My best spear points are finished, but I need sinew to attach them properly. Fresh kill provides that. But..." he glances at the old dried meat hanging in camp, "...we could survive winter on nuts, fish, and stored meat if we're careful."</p>
+    
+    <p>The band gathers to discuss. All eyes turn to you for your opinion.</p>
+    
+    <div class="choice" onclick="chooseMammoth('hunt')">
+        <strong>Advocate for the mammoth hunt</strong><br>
+        Fresh meat, fat for winter, hides, sinew for tools, bones for needles. Success would strengthen the band significantly. But tracking takes days, the hunt is dangerous, and hazelnuts wait for no one.
+    </div>
+    
+    <div class="choice" onclick="chooseMammoth('gather')">
+        <strong>Support the nut gathering</strong><br>
+        Reliable calories, easier to process and store, everyone can participate safely. But you'll miss this mammoth opportunity, and Tarak will be frustrated.
+    </div>
+    
+    <div class="choice" onclick="chooseMammoth('split')">
+        <strong>Propose splitting the band</strong><br>
+        Hunters pursue mammoth while gatherers take the nuts. Risk: if the hunt fails, you've divided strength. Smaller hunting party is more dangerous. Fewer gatherers might not collect enough.
+    </div>
+    
+    <div class="choice" onclick="chooseMammoth('wait')">
+        <strong>Suggest patience</strong><br>
+        Send scouts to track the mammoth's direction while gathering nuts quickly. Try for both, but sequentially. Risk: mammoth may move too far, nuts may fall, weather may turn.
+    </div>
+`;
+
+function chooseMammoth(choice) {
+    let outcome = '';
+    gameState.decisionLog.mammoth = choice; // Log the decision
+    
+    switch(choice) {
+        case 'hunt':
+            gameState.mammothHunt = true;
+            // Base: 65% success (hunter: 75%)
+            let huntBase = gameState.role === 'hunter' ? 0.25 : 0.35;
+            huntBase -= gameState.difficultyMod; // Apply difficulty
+            const huntSuccess = Math.random() > huntBase;
+            gameState.decisionLog.mammothSuccess = huntSuccess; // Log success/failure
+            
+            if (huntSuccess) {
+                outcome = `
+                    <h2>The Hunt Succeeds</h2>
+                    <p>Three days of careful tracking. The mammoth herd moved north toward the high valley. Tarak's patience paid off—he found where they stopped to browse on willow bark.</p>
+                    
+                    <p>The hunt itself was terrifying and magnificent. Eight hunters working in perfect coordination, driving a young bull toward a ravine. Your role was crucial—${gameState.role === 'hunter' ? 'your expert tracking and precise spear work proved decisive. Your experience reading animal behavior gave the band critical advantages.' : gameState.role === 'toolmaker' ? 'your perfectly hafted spear points held firm under tremendous force' : 'your steady presence helped maintain formation when the beast charged'}.</p>
+                    
+                    <p>The butchering took two full days. Every part used: meat, fat, hide, sinew, bones, even the stomach for water storage. The band feasts tonight.</p>
+                    
+                    <p>But Mira was right about the hazelnuts. By the time a small group returned to the grove, squirrels and jays had taken most of them. You have magnificent fresh resources but fewer stored plant foods.</p>
+                `;
+                changeResource('food', 20);
+                changeResource('tools', gameState.role === 'hunter' ? 15 : 10); // Hunters gain better weapons/knowledge
+                changeResource('morale', 15);
+                changeRelationship("tarak", 2);
+                changeRelationship("mira", -1);
+                if (gameState.role === 'hunter') {
+                    gameState.innovations.push('Advanced hunting coordination and tracking');
+                } else {
+                    gameState.innovations.push('Mammoth hunting coordination');
+                }
+            } else {
+                outcome = `
+                    <h2>The Hunt Fails</h2>
+                    <p>Five days of tracking. The herd moved faster than expected, heading toward the high passes. On the second day, one of the hunters—young Daro—twisted his ankle badly in a ravine while pursuing the herd.</p>
+                    
+                    <p>Tarak made the hard call: turn back. A injured hunter in unfamiliar territory, the herd moving into dangerous terrain, weather turning cold. The skilled choice, but a bitter one.</p>
+                    
+                    <p>When you return to the hazelnut grove, most nuts are gone. The band's food stores remain adequate but not abundant. Tarak is frustrated. Mira doesn't say "I told you," but her silence speaks.</p>
+                    
+                    <p>Daro will heal, but he'll limp for weeks. The band must care for him.</p>
+                `;
+                changeResource('food', -10);
+                changeResource('morale', -15);
+                changeResource('tools', -5);
+                changeRelationship("tarak", -1);
+                changeRelationship("mira", 1);
+            }
+            break;
+            
+        case 'gather':
+            gameState.mammothHunt = false;
+            outcome = `
+                <h2>The Harvest Succeeds</h2>
+                <p>The band descends on the hazelnut grove like purposeful locusts. Even the children help, their small fingers perfect for reaching into dense branches. Three days of steady work under autumn sun.</p>
+                
+                <p>Mira teaches the younger gatherers how to identify the ripest nuts by weight and sound. You learn ${gameState.role === 'gatherer' ? 'a new technique for cracking and storing them that significantly increases yield' : 'more than you expected about the patience required for this essential work'}.</p>
+                
+                <p>The result: heavy baskets of nuts that will keep through winter. Not as exciting as fresh mammoth meat, but reliable. Predictable. Safe.</p>
+                
+                <p>Tarak watches the northern ridge each evening, where mammoth tracks lead toward distant mountains. He says nothing, but you see the longing in his eyes. "There will be other hunts," Old Sura tells him. He nods, but doesn't seem convinced.</p>
+            `;
+            // GATHERER BONUS: +18 food vs +15
+            changeResource('food', gameState.role === 'gatherer' ? 18 : 15);
+            changeResource('knowledge', 5);
+            changeResource('morale', 5);
+            changeRelationship("mira", 2);
+            changeRelationship("tarak", -1);
+            gameState.innovations.push('Hazelnut processing techniques');
+            break;
+            
+        case 'split':
+            gameState.mammothHunt = true;
+            gameState.splitBand = true;
+            const splitSuccess = Math.random() > 0.5;
+            gameState.decisionLog.mammothSuccess = splitSuccess; // Log success
+            
+            if (splitSuccess) {
+                outcome = `
+                    <h2>Both Succeed</h2>
+                    <p>A risky decision that paid off. Tarak led five hunters north. Mira led everyone else to the hazelnuts. You ${gameState.role === 'hunter' ? 'went with Tarak, and your skills proved essential in the smaller party' : 'stayed with the gatherers, working harder to compensate for the reduced numbers'}.</p>
+                    
+                    <p>The hunters found the mammoth herd sooner than expected—luck favored the bold. A smaller party, but also a smaller young cow separated from the herd. Clean, quick kill. Less meat than a bull, but enough.</p>
+                    
+                    <p>Meanwhile, the gathering party worked dawn to dusk, finishing just as the first nuts began to fall. Exhausting work, but accomplished.</p>
+                    
+                    <p>When both groups reunite, there's celebration. The risk worked. But Old Sura reminds everyone: "The ancestors smile on the bold, but they also remind us—we survived by staying together. This worked. But remember the times it didn't."</p>
+                `;
+                changeResource('food', 28); // +3 bonus for successful risk
+                changeResource('tools', 8); // +3 bonus for successful risk
+                changeResource('morale', 12); // +2 bonus for successful risk
+                changeRelationship("tarak", 1);
+                changeRelationship("mira", 1);
+                gameState.innovations.push('Coordinated band splitting - Bold Leadership');
+            } else {
+                outcome = `
+                    <h2>Divided Strength, Divided Results</h2>
+                    <p>The hunters tracked for three days but the mammoth herd moved too quickly. A smaller party couldn't keep up the pace. They returned empty-handed but safe.</p>
+                    
+                    <p>The gathering party, also smaller, worked hard but couldn't cover enough ground. They collected nuts, but not as many as a full party could have gathered.</p>
+                    
+                    <p>When you reunite, the mood is somber. You have food, but less than you hoped. The gamble didn't pay off this time. "We should have stayed together," Ina says quietly. Others nod.</p>
+                    
+                    <p>The lesson is clear: sometimes divided strength means no one succeeds fully.</p>
+                `;
+                changeResource('food', 5);
+                changeResource('morale', -10);
+                changeRelationship("tarak", -1);
+                changeRelationship("mira", -1);
+            }
+            break;
+            
+        case 'wait':
+            gameState.mammothHunt = false;
+            outcome = `
+                <h2>Patience and Prudence</h2>
+                <p>The band gathers hazelnuts first—three full days of hard work. Meanwhile, two scouts follow the mammoth herd at a distance, tracking but not engaging.</p>
+                
+                <p>The nuts are secured. Good. But when the scouts return, they bring disappointing news: the herd moved into the high passes, territory your band doesn't know well. It would take four days just to reach them now, and the weather is turning.</p>
+                
+                <p>"The safe choice," Tarak acknowledges. "But safe doesn't always mean best." Still, he respects the decision. The band has food for winter. Not an abundance, but enough.</p>
+                
+                <p>Old Sura nods approvingly: "Our people survived not by always taking the biggest risks, but by reading the signs and knowing when to be bold and when to be careful."</p>
+            `;
+            changeResource('food', 12);
+            changeResource('knowledge', 8);
+            changeResource('morale', 3);
+            changeRelationship("sura", 2);
+            gameState.innovations.push('Scouting and strategic patience');
+            break;
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Mammoth Decision</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Paleolithic peoples hunted mammoth using sophisticated cooperative techniques—driving prey toward natural obstacles, using atlatls (spear-throwers) for range, and coordinating multiple hunters. Sites show complete butchering with no waste. However, hunts were dangerous and uncertain. Plant foods, especially nuts, provided reliable calories and could be stored. Successful bands balanced risk and reliability.
+        </div>
+        <button onclick="showPassage('actOne_tool')">Continue</button>
+    `;
+    updateResources();
+}
+
+window.chooseMammoth = chooseMammoth;
+
+passages.actOne_tool = () => `
+    <h1>The Innovation Question</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>One evening, Korin sits by the fire working on a new hafting technique. He's trying to attach a stone point to a wooden shaft using a combination of pine resin, sinew, and a new wrapping pattern he observed from a neighboring band two seasons ago.</p>
+    
+    <p>"The old way works," he mutters, "but this...if I can get it right, the point won't come loose even in bone. The leverage would be better too." He's been working on this for days, using precious materials.</p>
+    
+    <p>Tarak watches skeptically. "We have spears that work. Why waste time and sinew on experiments?"</p>
+    
+    <p>But you've noticed Korin's innovations before. Some failed, but others—like his method for heat-treating stone to improve flaking—changed how your band makes tools.</p>
+    
+    <p>${gameState.role === 'toolmaker' ? 'This is your craft. Your decision carries weight.' : 'Korin looks to you for support. Your opinion matters to him.'}</p>
+    
+    <div class="choice" onclick="chooseInnovation('support')">
+        <strong>Encourage the innovation</strong><br>
+        Give Korin time and resources to perfect the new technique. If it works, future tools will be better. Risk: materials used on experimentation, time spent on uncertain outcomes.
+    </div>
+    
+    <div class="choice" onclick="chooseInnovation('traditional')">
+        <strong>Stick with proven methods</strong><br>
+        Use materials on tools that definitely work. Winter is coming—not the time for experiments. Risk: miss potential improvements, discourage innovation.
+    </div>
+    
+    <div class="choice" onclick="chooseInnovation('test')">
+        <strong>Suggest a limited test</strong><br>
+        Let Korin make one or two experimental spears, but also make traditional ones. Test the new design on the next hunt. Balance innovation with reliability.
+    </div>
+`;
+
+function chooseInnovation(choice) {
+    let outcome = '';
+    gameState.decisionLog.toolChoice = choice; // Log choice
+    
+    switch(choice) {
+        case 'support':
+            gameState.toolInnovation = true;
+            // TOOLMAKER BONUS: 80% success vs 70%, with difficulty modifier
+            let innovBase = gameState.role === 'toolmaker' ? 0.2 : 0.3;
+            innovBase -= gameState.difficultyMod; // Apply difficulty
+            const innovSuccess = Math.random() > innovBase;
+            gameState.decisionLog.toolSuccess = innovSuccess; // Log success
+            
+            if (innovSuccess) {
+                outcome = `
+                    <h2>Innovation Succeeds</h2>
+                    <p>Korin spends four days perfecting the technique. He heats the resin to just the right temperature, wraps the sinew in a new pattern, lets it cure properly. ${gameState.role === 'toolmaker' ? 'You work alongside him, understanding each step intuitively. Your expertise accelerates the process and improves the final design.' : 'You watch his careful, methodical process with respect.'}</p>
+                    
+                    <p>The result: a spear point that doesn't just stay attached—it's actually stronger at the join than the shaft itself. When tested against a tree, the wood cracks before the point loosens.</p>
+                    
+                    <p>"This changes everything," Korin says quietly. The band begins remaking their most important spears with the new technique. It's laborious, but worth it.</p>
+                    
+                    <p>Even Tarak admits: "I was wrong to doubt." The band's tool quality has improved significantly.</p>
+                `;
+                // TOOLMAKER BONUS: +25 tools vs +20
+                changeResource('tools', gameState.role === 'toolmaker' ? 25 : 20);
+                changeResource('knowledge', 10);
+                changeResource('morale', 5);
+                changeRelationship("korin", 2);
+                gameState.innovations.push('Advanced hafting technique');
+            } else {
+                outcome = `
+                    <h2>Innovation Struggles</h2>
+                    <p>Korin tries three different resin mixtures. The first cracks in cold. The second never properly hardens. The third is too brittle.</p>
+                    
+                    <p>After six days and considerable materials, he returns to the traditional method, frustrated. "It should work," he insists. "I've seen the concept, but the execution..."</p>
+                    
+                    <p>Tarak doesn't gloat, but his point is made. The band has functional spears, but you've used up sinew and resin that could have maintained existing tools.</p>
+                    
+                    <p>Still, Old Sura reminds everyone: "Every tool we have now came from experiments that failed many times before succeeding. The trying matters, even when it fails."</p>
+                `;
+                // TOOLMAKER BONUS: Less material loss (-5 vs -8)
+                changeResource('tools', gameState.role === 'toolmaker' ? -5 : -8);
+                changeResource('knowledge', 5);
+                changeResource('morale', -5);
+                changeRelationship("korin", 1);
+                changeRelationship("tarak", 1);
+            }
+            break;
+            
+        case 'traditional':
+            gameState.toolInnovation = false;
+            outcome = `
+                <h2>Proven Methods Prevail</h2>
+                <p>The band focuses on maintaining existing tools with established techniques. No experiments, no risks. Every spear point is attached using the reliable method your people have used for generations.</p>
+                
+                <p>Korin accepts the decision but you can see disappointment in his eyes. "I understand," he says. "Winter is coming. We need certainty."</p>
+                
+                <p>The work goes smoothly. Tools are repaired, new ones made. Everything functions as expected. There are no surprises—good or bad.</p>
+                
+                <p>But one evening, Korin quietly asks Old Sura: "How did our ancestors first discover the methods we use now?" She smiles: "By trying new things, young one. Sometimes at the wrong time. But eventually, at the right time."</p>
+            `;
+            changeResource('tools', 8);
+            changeResource('morale', -3);
+            changeRelationship("korin", -1);
+            changeRelationship("tarak", 1);
+            break;
+            
+        case 'test':
+            gameState.toolInnovation = true;
+            outcome = `
+                <h2>Balanced Approach</h2>
+                <p>Korin makes three experimental spears alongside a full set of traditional ones. "Test them in practice," you suggest. "Let the results speak."</p>
+                
+                <p>The first hunt with the new spears is revealing. One performs beautifully—better balance, stronger attachment. One breaks immediately when it strikes bone (the resin mixture was wrong). One functions about the same as traditional spears.</p>
+                
+                <p>"I see what works and what doesn't," Korin says, examining the broken spear thoughtfully. ${gameState.role === 'toolmaker' ? 'Your technical insights help him understand exactly why the failure occurred and how to prevent it.' : 'He refines his technique, makes two more using lessons learned.'}</p>
+                
+                <p>The band now has several improved spears and the knowledge of how to make more. Not a revolution, but meaningful progress. Both Tarak and Korin seem satisfied with the approach.</p>
+            `;
+            // TOOLMAKER BONUS: +12 tools vs +10
+            changeResource('tools', gameState.role === 'toolmaker' ? 12 : 10);
+            changeResource('knowledge', 8);
+            changeResource('morale', 5);
+            changeRelationship("korin", 1);
+            changeRelationship("tarak", 1);
+            gameState.toolInnovation = true;
+            gameState.innovations.push('Experimental tool development');
+            break;
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Innovation Question</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Tool technology evolved through experimentation. The archaeological record shows failed experiments alongside successful innovations. Techniques like heat-treating stone, composite tool construction, and specialized hafting methods developed through trial and error. Innovation wasn't random—toolmakers observed, tested, and refined across generations. Sites show both conservative tool-making (proven methods) and experimental forms (testing new ideas).
+        </div>
+        <button onclick="showPassage('actOne_neighbors')">Continue</button>
+    `;
+    updateResources();
+}
+
+window.chooseInnovation = chooseInnovation;
+
+passages.actOne_neighbors = () => `
+    <h1>The Neighboring Band</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>One afternoon, scouts from another band appear at the edge of your camp. You recognize them—River Band, led by an experienced elder named Torak. Your peoples have encountered each other many times, sometimes trading, sometimes competing for resources.</p>
+    
+    <p>They come with an unusual request: "The river is low this year. The fish run that usually fills our winter stores is weak. We have fine ochre, good hides, and..." he gestures to beautiful shell beads, "...these from the great water, many days walk. We would trade for food."</p>
+    
+    <p>Mira calculates quickly: "If we give them a quarter of our nuts, we'd still have enough for winter, barely. But the ochre is useful for ceremonies and the beads..." She trails off, but you know beads are valuable for trade and alliance-building.</p>
+    
+    <p>Tarak is suspicious: "They could be lying about the fish. Testing us to see if we're weak."</p>
+    
+    <p>Old Sura says quietly: "I remember when our band needed help twenty winters ago. River Band shared their stores. That's how my youngest sister survived."</p>
+    
+    <div class="choice" onclick="chooseNeighbors('trade')">
+        <strong>Trade generously</strong><br>
+        Give them a good portion of your food stores in exchange for their goods. Build alliance, honor past help, strengthen connections between bands. Risk: you'll have less food security.
+    </div>
+    
+    <div class="choice" onclick="chooseNeighbors('small')">
+        <strong>Make a small trade</strong><br>
+        Trade a modest amount—enough to help them but not compromise your own stores significantly. A balanced approach that maintains relations without major risk.
+    </div>
+    
+    <div class="choice" onclick="chooseNeighbors('refuse')">
+        <strong>Decline to trade</strong><br>
+        Politely refuse, explaining your own band's needs. Preserve all your food stores. Risk: damage relationship, miss trade goods, ignore past debts.
+    </div>
+    
+    <div class="choice" onclick="chooseNeighbors('invite')">
+        <strong>Propose cooperation</strong><br>
+        Invite them to share your winter camp. Two bands together would be stronger, could pool resources, share knowledge. Risk: potential conflicts, sharing territory, complicated social dynamics.
+    </div>
+`;
+
+function chooseNeighbors(choice) {
+    let outcome = '';
+    gameState.decisionLog.neighborChoice = choice; // Log choice
+    
+    switch(choice) {
+        case 'trade':
+            gameState.tradedWithNeighbors = true;
+            outcome = `
+                <h2>Generous Alliance</h2>
+                <p>You give River Band a substantial portion of your nut stores. Torak's eyes widen slightly—he expected less. "Your generosity will be remembered," he says formally.</p>
+                
+                <p>In return, he gives you not just ochre and beads, but also shares something more valuable: "Three days north, we found a valley with many late-season berries. The frost hasn't touched them yet. We took what we needed, but there's more."</p>
+                
+                <p>He also gifts you one of his band's best scrapers—a beautifully made tool from stone your region doesn't have.</p>
+                
+                <p>That evening, Old Sura tells the band: "We helped them when they were weak. They helped us with knowledge when we were vulnerable. This is how our people survive—by remembering we're all human, all facing the same winter." ${gameState.role === 'elder' ? 'Your wisdom and authority helped seal this alliance. Torak clearly respects you as a fellow elder.' : ''}</p>
+                
+                <p>Your food stores are lower, but you've gained allies, trade goods, and valuable information.</p>
+            `;
+            changeResource('food', -12);
+            // ELDER BONUS: +10 knowledge vs +8
+            changeResource('knowledge', gameState.role === 'elder' ? 10 : 8);
+            changeResource('tools', 5);
+            changeResource('morale', 8);
+            // ELDER BONUS: Stronger relationship gain (+2 with Sura, +1 with Ina)
+            changeRelationship("sura", 2);
+            if (gameState.role === 'elder') {
+                changeRelationship("ina", 1); // Elder gets extra relationship bonus
+            }
+            gameState.innovations.push('Inter-band alliance and gift economy');
+            break;
+            
+        case 'small':
+            gameState.tradedWithNeighbors = true;
+            outcome = `
+                <h2>Careful Trade</h2>
+                <p>You make a modest exchange: some food for ochre and a few beads. Both sides seem satisfied, though not thrilled. It's a practical transaction.</p>
+                
+                <p>Torak accepts with a neutral expression. "Fair trade," he acknowledges. The River Band leaves amicably. Relations remain neutral—neither strengthened nor damaged.</p>
+                
+                <p>Your band has useful trade goods and hasn't compromised food security significantly. A safe, reasonable choice.</p>
+                
+                <p>But Old Sura looks thoughtful: "Not every choice needs to be bold. But sometimes I wonder what we miss by always playing it safe."</p>
+            `;
+            changeResource('food', -5);
+            changeResource('knowledge', 3);
+            changeResource('morale', 2);
+            gameState.tradedWithNeighbors = true;
+            break;
+            
+        case 'refuse':
+            gameState.tradedWithNeighbors = false;
+            outcome = `
+                <h2>Isolation</h2>
+                <p>You explain that your band's stores aren't sufficient to trade this year. Torak's expression hardens slightly. "I understand," he says, but his tone suggests otherwise.</p>
+                
+                <p>The River Band leaves. They're not hostile, but something has shifted. Old Sura looks troubled: "They helped us once. Now they'll remember we didn't help them."</p>
+                
+                <p>Your food stores remain intact, but you've missed an opportunity for alliance and gained no trade goods. Tarak seems satisfied: "We look after our own first." But Ina whispers: "What if we need help someday?"</p>
+                
+                <p>In the following weeks, the band feels the weight of isolation. No new stories, no trade goods, no allies. Just yourselves against winter.</p>
+            `;
+            changeResource('morale', -12); // Increased isolation penalty
+            changeResource('knowledge', -3); // Lost opportunity to learn
+            changeRelationship("sura", -1);
+            changeRelationship("ina", -1);
+            break;
+            
+        case 'invite':
+            outcome = `
+                <h2>United Bands</h2>
+                <p>You propose the unprecedented: "Winter together. Share camps, share resources, share knowledge. Two bands are stronger than one."</p>
+                
+                <p>Torak is surprised. He confers with his scouts, then looks at Old Sura. She nods slowly. "My grandmother told me of times when bands did this. It worked, when both sides respected each other." ${gameState.role === 'elder' ? 'Your standing as an elder carries tremendous weight in these negotiations. Both bands\' leaders recognize your wisdom.' : ''}</p>
+                
+                <p>After long discussion, both bands agree to try. The combined group will be larger than usual—risky, but potentially powerful. You'll share the best winter camp location, pool food stores, and combine knowledge.</p>
+                
+                <p>It's an experiment. Some are excited, others nervous about the change. But both bands' elders remember stories of winter alliances that saved lives.</p>
+            `;
+            changeResource('food', 5);
+            // ELDER BONUS: +15 knowledge vs +10 (better cultural integration)
+            changeResource('knowledge', gameState.role === 'elder' ? 15 : 10);
+            // ELDER BONUS: +10 morale vs +8 (elder helps smooth social tensions)
+            changeResource('morale', gameState.role === 'elder' ? 10 : 8);
+            changeResource('tools', 5);
+            gameState.tradedWithNeighbors = true;
+            changeRelationship("sura", 2);
+            // ELDER BONUS: Additional relationship improvements
+            if (gameState.role === 'elder') {
+                changeRelationship("ina", 1);
+                changeRelationship("mira", 1);
+            }
+            gameState.innovations.push('Inter-band winter alliance');
+            break;
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Neighboring Band</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Paleolithic peoples maintained complex social networks across multiple bands. Trade goods found hundreds of miles from their sources (shells, ochre, exotic stones) prove long-distance exchange. Gift economies strengthened alliances and created obligations of reciprocity. During difficult times, bands might merge temporarily or permanently. Social bonds weren't just pleasant—they were survival strategies.
+        </div>
+        <button onclick="showPassage('actOne_story')">Continue</button>
+    `;
+    updateResources();
+}
+
+window.chooseNeighbors = chooseNeighbors;
+
+passages.actOne_story = () => `
+    <h1>The Evening Fire</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>As autumn deepens, the band gathers around the fire each evening. Children sit close to their parents. Elders settle into comfortable positions. This is story time—entertainment, yes, but also education.</p>
+    
+    <p>Old Sura usually leads, but tonight she looks at you: "${gameState.role === 'elder' ? 'The time has come for you to share your wisdom' : 'You have gained knowledge this season. Will you share what you have learned?'}"</p>
+    
+    <p>The younger band members look at you expectantly. Even the children are quiet, waiting.</p>
+    
+    <p>You can tell a story that teaches about this season's experiences—but which lesson matters most?</p>
+    
+    <div class="choice" onclick="chooseStory('survival')">
+        <strong>Tell a story about patience and survival</strong><br>
+        Focus on careful planning, reading nature's signs, preparing for winter. Emphasize the wisdom of preparation over bold risks. Teaches: caution, observation, planning.
+    </div>
+    
+    <div class="choice" onclick="chooseStory('courage')">
+        <strong>Tell a story about courage and skill</strong><br>
+        Focus on the hunt, coordination, bravery in facing danger. Emphasize how skill and courage bring great rewards. Teaches: cooperation, bravery, expertise.
+    </div>
+    
+    <div class="choice" onclick="chooseStory('innovation')">
+        <strong>Tell a story about innovation and learning</strong><br>
+        Focus on how trying new methods, experimenting, and learning from failure leads to progress. Teaches: curiosity, experimentation, adaptation.
+    </div>
+    
+    <div class="choice" onclick="chooseStory('community')">
+        <strong>Tell a story about community and helping others</strong><br>
+        Focus on how bands survive by helping each other, sharing knowledge, building alliances. Teaches: cooperation, generosity, long-term thinking.
+    </div>
+`;
+
+function chooseStory(choice) {
+    let outcome = '';
+    gameState.decisionLog.storyChoice = choice; // Log choice
+    
+    // ELDER TEACHING EFFECTIVENESS: Morale impacts knowledge absorption
+    const elderKnowledgeModifier = gameState.role === 'elder' ? 
+        Math.floor((gameState.morale - 70) / 20) : 0; // -1 to +1 based on morale
+    
+    switch(choice) {
+        case 'survival':
+            outcome = `
+                <h2>The Story of the Watching Owl</h2>
+                <p>${gameState.role === 'elder' ? 'You tell' : 'You adapt'} an old tale about a young hunter who learned to watch and wait like the owl—patient, observant, striking only when the moment is perfect.</p>
+                
+                <p>"The owl doesn't chase every mouse," ${gameState.role === 'elder' ? 'you say' : 'you explain'}. "It watches. It learns patterns. It waits for the right moment. Our ancestors survived not by taking every risk, but by knowing which risks to take."</p>
+                
+                <p>You weave in this season's experiences—reading weather signs, preparing food stores, understanding when to act and when to wait. ${gameState.role === 'elder' && gameState.morale >= 80 ? 'The band is in good spirits, receptive and engaged. Your teachings sink deep.' : gameState.role === 'elder' && gameState.morale < 60 ? 'The band listens, but worry and fatigue make it harder for your lessons to take root.' : 'The children absorb every word. The adults nod, recognizing truths they know but need to hear again.'}</p>
+                
+                <p>Old Sura smiles: "${gameState.role === 'elder' ? 'You carry our traditions forward with wisdom.' : 'The old stories live because each generation makes them new.'}"</p>
+            `;
+            // ELDER BONUS: Base +15 vs +12, modified by morale
+            const survivalKnowledge = gameState.role === 'elder' ? 
+                15 + elderKnowledgeModifier : 12;
+            changeResource('knowledge', survivalKnowledge);
+            changeResource('morale', 8);
+            changeRelationship("sura", gameState.role === 'elder' ? 2 : 1);
+            gameState.storiesPreserved.push('The Watching Owl - Patience and Preparation');
+            break;
+            
+        case 'courage':
+            outcome = `
+                <h2>The Story of the First Hunters</h2>
+                <p>You tell a tale of the first humans who learned to hunt together—how they discovered that alone, they were weak, but together, with courage and coordination, they could face the greatest beasts.</p>
+                
+                <p>"Watch how geese fly," you say, making the children look at imaginary birds. "Each one takes its turn at the front, breaking the wind for others. Hunters are like this. Each person's courage makes the whole band stronger."</p>
+                
+                <p>${gameState.mammothHunt ? 'You reference the recent mammoth hunt, turning it into legend before the listeners\' eyes.' : 'You paint vivid pictures of ancient hunts, making the children feel the excitement and danger.'}</p>
+                
+                <p>Tarak watches with approval. The younger hunters sit straighter. ${gameState.role === 'elder' ? gameState.morale >= 80 ? 'Your authority as an elder, combined with the band\'s high spirits, gives extra weight to the lesson.' : 'Your authority as an elder gives extra weight to the lesson.' : 'The story ignites something in them—pride in their skills, commitment to the band.'}</p>
+            `;
+            // ELDER BONUS: Base +13 vs +10, modified by morale
+            const courageKnowledge = gameState.role === 'elder' ? 
+                13 + elderKnowledgeModifier : 10;
+            changeResource('knowledge', courageKnowledge);
+            changeResource('morale', 12);
+            changeRelationship("tarak", gameState.role === 'elder' ? 2 : 1);
+            gameState.storiesPreserved.push('The First Hunters - Courage and Cooperation');
+            break;
+            
+        case 'innovation':
+            outcome = `
+                <h2>The Story of the Clever Stone</h2>
+                <p>You tell how the first tool maker discovered that heating certain stones made them easier to work—but only after many burns, many failures, many stones ruined.</p>
+                
+                <p>"Every tool we hold," you say, "was once a foolish idea. Someone tried wrapping a stone to a stick. Everyone laughed. Now look—every hunter carries a hafted spear."</p>
+                
+                <p>You describe the first person who thought to use dried sinew, the first who discovered resin. ${gameState.toolInnovation ? 'You reference Korin\'s recent experiments, showing how the old pattern continues.' : 'You make the children understand that every familiar tool was once new and strange.'}</p>
+                
+                <p>Korin looks moved. ${gameState.role === 'elder' ? 'Your elder\'s perspective helps everyone see innovation as part of a long tradition, not as rejection of it.' : 'Even the children seem to understand: progress requires trying things that might not work.'}</p>
+            `;
+            // ELDER BONUS: Base +18 vs +15, modified by morale
+            const innovationKnowledge = gameState.role === 'elder' ? 
+                18 + elderKnowledgeModifier : 15;
+            changeResource('knowledge', innovationKnowledge);
+            changeResource('morale', 8);
+            changeRelationship("korin", 2);
+            gameState.storiesPreserved.push('The Clever Stone - Innovation and Learning');
+            break;
+            
+        case 'community':
+            outcome = `
+                <h2>The Story of the Long Winter</h2>
+                <p>You tell of a winter so harsh that no single band could survive—but three bands came together, shared what little they had, and all survived to see spring.</p>
+                
+                <p>"Our people learned long ago," you say, voice dropping to make everyone lean in, "that we are strongest when we remember: other bands are not strangers. They are us, in different camps. Their children are like our children. Their hunger is like our hunger."</p>
+                
+                <p>${gameState.tradedWithNeighbors ? 'You reference the River Band, the recent trade, the connections that bind your peoples.' : 'You make the children understand that isolated bands are weak bands.'}</p>
+                
+                <p>Old Sura nods deeply. Ina wipes her eyes. ${gameState.role === 'elder' ? 'As a fellow elder, your words carry tremendous weight. The whole band feels the truth of it.' : 'The message is clear: generosity and connection are survival strategies, not luxuries.'}</p>
+            `;
+            // ELDER BONUS: Base +15 vs +12, modified by morale
+            const communityKnowledge = gameState.role === 'elder' ? 
+                15 + elderKnowledgeModifier : 12;
+            changeResource('knowledge', communityKnowledge);
+            changeResource('morale', 15);
+            changeRelationship("sura", 2);
+            changeRelationship("ina", gameState.role === 'elder' ? 2 : 1);
+            gameState.storiesPreserved.push('The Long Winter - Community and Alliance');
+            break;
+    }
+    
+    gameState.toldStory = true;
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Evening Fire</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Oral tradition was Paleolithic humanity's primary method of preserving and transmitting knowledge across generations. Stories encoded practical information (where to find resources, how to make tools, what dangers to avoid) within memorable narratives. Evening gatherings around fires served educational, social, and cultural functions. The ability to preserve knowledge without writing allowed human cultures to accumulate sophisticated understanding over thousands of years.
+        </div>
+        <button onclick="showPassage('actTwo_storm')">Continue to Act II</button>
+    `;
+    updateResources();
+}
+
+window.chooseStory = chooseStory;
+
+passages.actTwo_storm = () => `
+    <h1>Act II: The Storm Arrives</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>Two weeks later, everything changes.</p>
+    
+    <p>You wake to silence—the strange, muffled quiet that comes with deep snow. But it's too early. The leaves haven't even finished falling.</p>
+    
+    <p>You step outside. Snow blankets everything, still falling heavily. The temperature has dropped dramatically. This is no autumn frost—this is winter, arrived a month early.</p>
+    
+    ${gameState.splitBand && gameState.decisionLog.mammothSuccess ? 
+        '<p>The band responds with practiced coordination. The successful split-band strategy in autumn—when you divided to hunt and gather simultaneously—proved your people\'s adaptability and trust. That confidence helps now as you face this new crisis together.</p>' : 
+        gameState.splitBand && !gameState.decisionLog.mammothSuccess ? 
+        '<p>The band responds cautiously. The failed split-band attempt in autumn still weighs on people\'s minds. They learned a hard lesson: sometimes divided strength means no one succeeds. Now, facing this storm, they\'re determined to stay together.</p>' : 
+        ''}
+    
+    <p>The band's summer shelters—designed for ventilation and comfort in warm weather—are already inadequate. Wind cuts through the gaps. The fire pit is exposed to snow.</p>
+    
+    <p>${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 
+        'The combined bands—yours and the River Band—gather urgently. This is your first major test as an alliance. Torak confers quietly with Tarak, while Old Sura assesses the situation alongside the River Band\'s elders.' : 
+        'The band gathers urgently. Old Sura\'s face is grave'}${ gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? '' : 
+        ': "I remember a winter like this. I was a child. It came early, stayed late. Many bands struggled. Some didn\'t survive."'}</p>
+    
+    ${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 
+        '<p>Old Sura speaks to both bands: "I remember a winter like this. It came early, stayed late. Many bands struggled. But we are stronger together than apart."</p>' : ''}
+    
+    <p>Mira assesses your situation: "Food stores: ${gameState.food > 50 ? 'good, if we\'re careful' : 'adequate but thin'}. ${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 'With the River Band, we have more mouths but also more hands. ' : ''}Tools: ${gameState.tools > 60 ? 'in good condition' : 'functional but some need repair'}. But shelter—that's the immediate problem."</p>
+    
+    <p>Three options emerge:</p>
+    
+    <div class="choice" onclick="chooseStorm('caves')">
+        <strong>Move to the white stone caves</strong><br>
+        Old Sura remembers caves two days north—deep, protected, but claimed by another band forty winters ago. Unknown if they're occupied now. Risk: journey in storm, potential conflict, unfamiliar territory.
+    </div>
+    
+    <div class="choice" onclick="chooseStorm('reinforce')">
+        <strong>Reinforce shelters here</strong><br>
+        ${gameState.mammothHunt ? 'Use mammoth hides and available materials' : 'Use bark, branches, and any available materials'} to winterize current location. Known territory, familiar resources, but exposed position. Two days of cold, hard work.
+    </div>
+    
+    <div class="choice" onclick="chooseStorm('valley')">
+        <strong>Move to the winter valley</strong><br>
+        Three days south to the valley your band has used before. Protected, known fish runs, reliable winter camp. But three days travel in snow with children and elders. ${gameState.food < 40 ? 'Food stores are concerning for that journey.' : ''}
+    </div>
+`;
+
+function chooseStorm(choice) {
+    gameState.shelterChoice = choice;
+    let outcome = '';
+    
+    switch(choice) {
+        case 'caves':
+            const caveSuccess = Math.random() > 0.4;
+            gameState.decisionLog.shelterSuccess = caveSuccess; // Log success
+            
+            if (caveSuccess) {
+                outcome = `
+                    <h2>The Journey North</h2>
+                    <p>Two days of brutal travel. Snow to your knees. Children carried on shoulders, taking turns. Elders supported by younger adults. ${gameState.role === 'elder' ? 'You walk with determination, refusing to be a burden despite your years.' : 'You help carry supplies, trade off with others when strength fails.'}</p>
+                    
+                    <p>On the second day, you find the white stone cliffs. The caves are there, exactly as Old Sura remembered. And they're empty—the other band moved on years ago.</p>
+                    
+                    <p>The caves are magnificent. Deep enough to escape wind, narrow enough to trap heat from fires, with dry sandy floors. Ancient charcoal on the walls hints that humans have used these caves for countless generations.</p>
+                    
+                    <p>"This is better than our summer camp ever was," Ina says, setting her children down safely. The band begins making the caves comfortable—gathering firewood, organizing supplies, setting up sleeping areas.</p>
+                    
+                    <p>The gamble paid off. You're safer than you would have been anywhere else.</p>
+                `;
+                changeResource('food', -10);
+                changeResource('morale', 15);
+                changeResource('tools', -5);
+                changeRelationship("sura", 2);
+            } else {
+                outcome = `
+                    <h2>A Difficult Journey</h2>
+                    <p>The journey north is harder than expected. On the first day, the oldest elder—Kora—collapses from exhaustion and cold. She insists the band continue, but you must carry her.</p>
+                    
+                    <p>When you finally reach the white stone cliffs, you find the caves... occupied. Not by humans, but by a family of cave bears preparing for winter. The adult bear makes clear: this territory is claimed.</p>
+                    
+                    <p>There's no fighting a cave bear in its own den. The band retreats to a smaller overhang nearby—less protected than you hoped, but better than nothing.</p>
+                    
+                    <p>That night, Kora dies quietly. She was old, already weak. The cold journey was too much. The band mourns. She will be buried properly when the ground thaws.</p>
+                    
+                    <p>You have shelter, but at a terrible cost. And everyone wonders: was this the right choice?</p>
+                `;
+                changeResource('food', -15);
+                changeResource('morale', -20);
+                changeResource('tools', -8);
+                gameState.deaths += 1;
+                changeRelationship("sura", -1);
+            }
+            break;
+            
+        case 'reinforce':
+            outcome = `
+                <h2>Shelter Strengthening</h2>
+                <p>The band works for two solid days in the cold. ${gameState.mammothHunt ? 'The mammoth hides prove invaluable—thick, waterproof, large enough to cover major gaps.' : 'You gather bark, additional branches, and use every material available.'} ${gameState.toolInnovation ? 'Korin\'s improved tools make the work faster and more effective.' : ''}</p>
+                
+                <p>Everyone contributes: hunters cut and carry materials, gatherers weave additional insulation, children stuff gaps with dry grass and moss. ${gameState.role === 'toolmaker' ? 'Your tools and expertise guide the construction.' : gameState.role === 'gatherer' ? 'Your knowledge of materials proves essential.' : 'You work alongside everyone, learning new techniques.'}</p>
+                
+                <p>By the end of the second day, your summer shelters have been transformed into winter structures. Not perfect—still cold, still requiring constant fire maintenance—but survivable.</p>
+                
+                <p>The work was exhausting, but you stayed in familiar territory with known resources. ${gameState.tools > 50 ? 'Your good tools made the difference.' : 'It would have been easier with better tools, but you managed.'}</p>
+            `;
+            changeResource('food', -5);
+            changeResource('morale', 5);
+            changeResource('tools', -10);
+            if (gameState.mammothHunt) changeResource('morale', 5);
+            changeRelationship("mira", 1);
+            changeRelationship("ina", 1);
+            break;
+            
+        case 'valley':
+            if (gameState.food > 40) {
+                outcome = `
+                    <h2>The Southern Journey</h2>
+                    <p>Three days of careful travel south. The band moves as a unit—strong members helping weak, taking frequent rests, sharing warmth at night by huddling together in temporary windbreaks.</p>
+                    
+                    <p>${gameState.food > 60 ? 'Your good food stores allow for proper breaks and meals.' : 'Food is tight, but you manage.'} Old Sura sets the pace, knowing when to push and when to rest.</p>
+                    
+                    <p>On the third day, you descend into the winter valley. The band's spirits lift immediately. This is familiar ground—the valley where your people have wintered before. Protected from wind, near a river that doesn't fully freeze, with rock overhangs perfect for shelters.</p>
+                    
+                    <p>Within days, the band has established a proper winter camp. Children play in the snow. Adults set fishing lines through ice. The change in morale is palpable—anxiety transforms into confidence.</p>
+                    
+                    <p>"This is how our people survive," Old Sura says. "By knowing the land, remembering the good places, and having the strength to reach them."</p>
+                `;
+                changeResource('food', -12);
+                changeResource('morale', 15);
+                changeResource('tools', -3);
+                changeRelationship("sura", 1);
+            } else {
+                outcome = `
+                    <h2>A Costly Journey</h2>
+                    <p>Three days in deep snow with inadequate food stores. The journey is grueling. By the second day, everyone is rationing carefully. Children cry from hunger and cold.</p>
+                    
+                    <p>You reach the winter valley, but the band is weakened. Two of the elders are sick from the exposure. Several children show signs of frost damage to fingers and toes.</p>
+                    
+                    <p>The valley is good, but the cost of reaching it was high. "We should have stored more food," Mira says quietly. "Or stayed and reinforced shelters. This journey nearly broke us."</p>
+                    
+                    <p>You have shelter now, but the band starts winter in a weakened state.</p>
+                `;
+                changeResource('food', -20);
+                changeResource('morale', -10);
+                changeResource('tools', -5);
+                gameState.deaths += 1;
+            }
+            break;
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Storm Decision</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Early winters or unusual weather presented existential challenges to Paleolithic peoples. Successful bands needed mobility (ability to move when necessary), flexibility (adapt shelter to conditions), and environmental knowledge (know where protected camps existed). Cave sites across Europe show repeated occupation across millennia, suggesting humans remembered and returned to the best winter locations. Rapid adaptation to changing conditions was essential for survival.
+        </div>
+        <button onclick="showPassage('actThree_council')">Continue to Act III</button>
+    `;
+    updateResources();
+}
+
+window.chooseStorm = chooseStorm;
+
+passages.actThree_council = () => `
+    <h1>Act III: The Winter Council</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>${(() => {
+        let shelterDesc = "The band has been in winter camp for three weeks.";
+        if (gameState.shelterChoice === "caves" && gameState.decisionLog.shelterSuccess) {
+            shelterDesc = "Deep in the white stone caves, your band has survived three weeks of relentless winter. The caves protect you from howling winds—Sura's ancient memory saved lives.";
+        } else if (gameState.shelterChoice === "caves" && !gameState.decisionLog.shelterSuccess) {
+            shelterDesc = "Three weeks in the makeshift shelter after the failed cave journey. The memory of Elder Kora's death weighs heavy.";
+        } else if (gameState.shelterChoice === "valley") {
+            shelterDesc = "Three weeks in the protected winter valley. Snow piles high, but the familiar location provides comfort.";
+        } else if (gameState.shelterChoice === "reinforce") {
+            shelterDesc = "Three weeks in your reinforced shelters. They creak under snow weight but hold—constant maintenance works.";
+        }
+        return shelterDesc;
+    })()} Snow continues to fall. The cold is relentless. But you're sheltered, alive, and functioning as a group.</p>
+    
+    <p>${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 
+        'Tonight, the expanded band—yours and the River Band together—holds council. It\'s a larger gathering than usual, with more voices and perspectives. The alliance creates both strength and complexity as you navigate decisions together.' : 
+        'Tonight, the band holds council—a formal gathering where all adults speak and major decisions are made collectively.'} Even the older children attend, learning how their people govern themselves.</p>
+    
+    <p>Old Sura opens the council: "We have survived the storm's arrival. ${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 'Our two bands have weathered it together. ' : ''}Now we must plan for a long winter. ${gameState.food > 50 ? 'Our food stores are adequate but not abundant.' : 'Our food stores are concerningly low.'} ${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 'With more mouths to feed, every decision matters more.' : 'We must decide: how do we manage resources? What risks do we take?'}"</p>
+    
+    <p>Tarak speaks: "We could fish through the ice, hunt in the snow when weather allows. Risky, but might improve our stores."</p>
+    
+    <p>Mira counters: "Or we ration carefully, use what we have, avoid risks. We can survive on current stores if we're disciplined."</p>
+    
+    <p>Korin adds: "Tools will need constant maintenance in this cold. Wood becomes brittle, sinew freezes. I need time to keep everything functional."</p>
+    
+    <p>Ina says quietly: "My children are afraid. Everyone is tense. We need activities, stories, something to maintain spirits through the dark months."</p>
+    
+    <p>Now you must speak. As ${gameState.role === 'elder' ? 'an elder, your voice carries particular weight' : 'someone who has proven yourself this season, the band wants to hear your perspective'}.</p>
+    
+    <div class="choice" onclick="chooseCouncil('aggressive')">
+        <strong>Advocate for active resource gathering</strong><br>
+        Fish, hunt when possible, gather what can be found. Maintain food stores actively. Risky but could improve your position significantly.
+    </div>
+    
+    <div class="choice" onclick="chooseCouncil('conservative')">
+        <strong>Advocate for careful rationing</strong><br>
+        Strict conservation, minimal risk-taking, rely on current stores. Safest approach, but morale may suffer from inactivity and sparse meals.
+    </div>
+    
+    <div class="choice" onclick="chooseCouncil('balanced')">
+        <strong>Propose a balanced strategy</strong><br>
+        Ration most days, but occasionally fish or hunt when conditions allow. Balance safety with morale and opportunity. Middle path.
+    </div>
+    
+    <div class="choice" onclick="chooseCouncil('cultural')">
+        <strong>Emphasize cultural activities and knowledge sharing</strong><br>
+        Focus less on food quantities and more on using winter for teaching, storytelling, tool improvement, and maintaining band unity. Quality of survival matters, not just quantity of food.
+    </div>
+`;
+
+function chooseCouncil(choice) {
+    let outcome = '';
+    gameState.decisionLog.councilChoice = choice; // Log choice
+    
+    switch(choice) {
+        case 'aggressive':
+            // HUNTER BONUS: 65% success vs 55%, with difficulty modifier
+            let aggressiveBase = gameState.role === 'hunter' ? 0.35 : 0.45;
+            aggressiveBase -= gameState.difficultyMod; // Apply difficulty
+            const huntSuccess = Math.random() > aggressiveBase;
+            gameState.decisionLog.councilSuccess = huntSuccess; // Log success
+            
+            if (huntSuccess) {
+                outcome = `
+                    <h2>Active Winter</h2>
+                    <p>The band adopts an active strategy. On days when weather permits, hunting parties venture out. Holes are cut through river ice for fishing. Foragers search for winter plants—bark, dried berries, anything edible.</p>
+                    
+                    <p>It's hard work in brutal conditions. But it pays off. A lucky hunt brings down a winter deer. Fish supplement your stores. The band eats better than they would have on rationing alone.</p>
+                    
+                    <p>The activity also helps morale—people feel proactive rather than passive victims of winter. ${gameState.role === 'hunter' ? 'Your hunting skills prove crucial.' : gameState.role === 'gatherer' ? 'Your knowledge of winter plants helps.' : gameState.role === 'toolmaker' ? 'Your expertise in maintaining tools in harsh conditions minimizes equipment losses.' : 'You contribute where you can, learning winter survival skills.'}</p>
+                    
+                    <p>By mid-winter, your food situation has actually improved. The gamble worked.</p>
+                `;
+                changeResource('food', 20);
+                changeResource('morale', 15);
+                // TOOLMAKER BONUS: -5 tool wear vs -8 (better tool maintenance)
+                changeResource('tools', gameState.role === 'toolmaker' ? -5 : -8);
+                changeRelationship("tarak", 2);
+            } else {
+                outcome = `
+                    <h2>Winter's Harshness</h2>
+                    <p>The band tries to actively gather resources, but winter is unforgiving. A hunting party gets caught in a blizzard—everyone returns safely, but barely, after a terrifying night in a snow cave.</p>
+                    
+                    <p>Ice fishing yields little—the fish aren't running well this year. Foraging in deep snow is exhausting and produces minimal results.</p>
+                    
+                    <p>Tools break in the cold. ${gameState.role === 'toolmaker' ? 'Your expertise helps salvage some broken implements and reduce losses, but the conditions are brutal.' : 'People get frost damage.'} The energy expended exceeds the resources gained. After two weeks of struggling, the band shifts to a more conservative approach, but damage is done.</p>
+                    
+                    <p>Morale drops as people realize the risks weren't worth it. You're weaker than if you'd simply rationed from the start.</p>
+                `;
+                changeResource('food', -8);
+                changeResource('morale', -15);
+                // TOOLMAKER BONUS: -12 tool loss vs -15 (minimized breakage through expertise)
+                changeResource('tools', gameState.role === 'toolmaker' ? -12 : -15);
+                changeRelationship("tarak", 1);
+            }
+            break;
+            
+        case 'conservative':
+            outcome = `
+                <h2>The Long Wait</h2>
+                <p>The band adopts strict rationing. Meals are small but regular. No unnecessary risks. People stay in shelter, conserving energy and resources.</p>
+                
+                <p>Food stores hold steady. Everyone gets enough to survive—barely. It's a grinding, monotonous existence. Days blur together. The cold, the darkness, the same small portions of food.</p>
+                
+                <p>${gameState.role === 'gatherer' ? 'Your knowledge of food preservation and efficient rationing helps make limited stores last. You share techniques for making every bit count.' : 'By mid-winter, people are thin and irritable. Children don\'t play as much. Arguments break out over small things.'}</p>
+                
+                ${!gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'refuse' ? 
+                    '<p>The isolation you chose in autumn weighs heavily now. No new stories from other bands. No allies to share the burden with. No fresh perspectives to lift spirits. Just your own band, alone against the winter.</p>' : ''}
+                
+                <p>${gameState.toldStory ? 'Your earlier storytelling helps maintain some connection, but it\'s not enough.' : 'Someone needs to maintain spirits, but no one has the energy.'}</p>
+                
+                <p>Old Sura looks worried: "Surviving isn't the same as living. We need to remember how to be human, not just endure."</p>
+            `;
+            changeResource('food', 3);
+            changeResource('morale', -12);
+            // GATHERER BONUS: -2 knowledge loss vs -5 (gatherers help maintain food-processing knowledge during rationing)
+            changeResource('knowledge', gameState.role === 'gatherer' ? -2 : -5);
+            changeResource('tools', 5);
+            changeRelationship("mira", gameState.role === 'gatherer' ? 2 : 1);
+            break;
+            
+        case 'balanced':
+            outcome = `
+                <h2>Measured Winter</h2>
+                <p>The band adopts a flexible approach: ration most days, but seize opportunities when they arise. When weather clears briefly, a small fishing party goes out. When tracks appear near camp, two hunters investigate carefully.</p>
+                
+                <p>It's not aggressive, but not passive either. You gain some additional food—not dramatically, but enough to supplement stores and boost morale. People feel they're responding intelligently to conditions rather than either recklessly risking everything or giving up entirely.</p>
+                
+                <p>The balance works. You're neither abundantly fed nor desperately hungry. Tool maintenance happens steadily. Morale stays reasonable—people understand the strategy and trust the band's judgment.</p>
+                
+                <p>${gameState.toolInnovation ? 'Korin uses the relatively calm periods to continue refining tools.' : ''} ${gameState.toldStory ? 'Your earlier storytelling set a tone that continues through winter.' : ''}</p>
+            `;
+            changeResource('food', 10);
+            changeResource('morale', 8);
+            changeResource('tools', -3);
+            changeRelationship("sura", 1);
+            changeRelationship("mira", 1);
+            break;
+            
+        case 'cultural':
+            // ELDER POLITICAL WISDOM MECHANIC
+            if (gameState.role === 'elder') {
+                // Calculate relationship total and morale modifier
+                const relationshipTotal = gameState.tarakRelation + gameState.miraRelation + 
+                                        gameState.korinRelation + gameState.suraRelation + 
+                                        gameState.inaRelation;
+                const moraleModifier = (gameState.morale - 70) / 20; // -3.5 to +1.5 range
+                const relationshipModifier = relationshipTotal * 0.05; // -0.5 to +0.5 range
+                
+                // Base 60% success, modified by relationships and morale
+                const successChance = 0.6 + relationshipModifier + moraleModifier;
+                const culturalSuccess = Math.random() < successChance;
+                gameState.decisionLog.councilSuccess = culturalSuccess; // Log for tracking
+                
+                if (culturalSuccess) {
+                    outcome = `
+                        <h2>Winter as Teacher</h2>
+                        <p>You argue for something different: "Winter isn't just about surviving—it's about maintaining who we are. About teaching the next generation. About becoming better at our crafts." As an elder, your voice carries tremendous weight—and the band trusts you.</p>
+                        
+                        <p>The band embraces this philosophy wholeheartedly. Elders teach children about plants, animals, seasons, navigation. Korin holds tool-making sessions, passing on techniques. ${gameState.toldStory ? 'You continue storytelling traditions, making them richer.' : 'Stories are told every evening—old ones remembered, new ones created.'}</p>
+                        
+                        <p>Hunters practice tracking theory, discussing past hunts. Gatherers share processing knowledge. People work on crafts—better baskets, improved clothing, decorative items using ochre ${gameState.tradedWithNeighbors ? 'from the River Band' : 'saved from previous seasons'}.</p>
+                        
+                        <p>Food is rationed, but spirits remain surprisingly high. People are engaged, learning, creating. Your leadership in organizing these activities makes them especially effective—you know exactly what knowledge matters most. The band is unified in purpose.</p>
+                        
+                        <p>By spring, you're thinner, but your band is more skilled, more united, and carries more knowledge than before. Your wisdom has been heard and absorbed.</p>
+                    `;
+                    changeResource('food', 5);
+                    changeResource('morale', 18);
+                    changeResource('knowledge', 20);
+                    changeResource('tools', 5);
+                    changeRelationship("sura", 2);
+                    changeRelationship("korin", 1);
+                    changeRelationship("ina", 2);
+                    gameState.innovations.push('Winter knowledge transmission traditions');
+                } else {
+                    outcome = `
+                        <h2>Divided Priorities</h2>
+                        <p>You argue for cultural focus: "Winter is for teaching, for maintaining who we are." But ${gameState.morale < 70 ? 'the band is too worn down, too hungry and cold to fully embrace this vision' : 'you sense resistance—your relationships with key band members aren\'t strong enough to fully persuade them'}.</p>
+                        
+                        <p>Tarak speaks up: "We need to focus on survival first. Knowledge means nothing if we starve." ${gameState.miraRelation < 1 ? 'Mira nods in agreement.' : ''} ${gameState.korinRelation < 1 ? 'Even Korin looks uncertain.' : ''}</p>
+                        
+                        <p>The band compromises: some cultural activities happen, but half-heartedly. You teach, but people are distracted, worried about food stores. ${gameState.toldStory ? 'Your earlier stories help maintain some connection,' : 'Without established trust,'} the lessons don't fully take root.</p>
+                        
+                        <p>Children learn some things, but the transmission is incomplete. Adults participate, but with minds elsewhere. By spring, some knowledge has been preserved—but less than you hoped. The band remains functional, but you feel the missed opportunity keenly.</p>
+                        
+                        <p>Old Sura says quietly: "Wisdom is only heard when people are ready to listen. Sometimes survival must come first."</p>
+                    `;
+                    changeResource('food', 5);
+                    changeResource('morale', 8); // Reduced from 18
+                    changeResource('knowledge', 10); // Reduced from 20
+                    changeResource('tools', 5);
+                    changeRelationship("sura", 1); // Reduced
+                    changeRelationship("korin", 0); // Neutral
+                    changeRelationship("ina", 1); // Reduced
+                    // No innovation added on failure
+                }
+            } else {
+                // Non-Elder baseline (no success check)
+                outcome = `
+                    <h2>Winter as Teacher</h2>
+                    <p>You argue for something different: "Winter isn't just about surviving—it's about maintaining who we are. About teaching the next generation. About becoming better at our crafts."</p>
+                    
+                    <p>The band embraces this philosophy. Elders teach children about plants, animals, seasons, navigation. Korin holds tool-making sessions, passing on techniques. ${gameState.toldStory ? 'You continue storytelling traditions, making them richer.' : 'Stories are told every evening—old ones remembered, new ones created.'}</p>
+                    
+                    <p>Hunters practice tracking theory, discussing past hunts. Gatherers share processing knowledge. People work on crafts—better baskets, improved clothing, decorative items using ochre ${gameState.tradedWithNeighbors ? 'from the River Band' : 'saved from previous seasons'}.</p>
+                    
+                    <p>Food is rationed, but spirits remain surprisingly high. People are engaged, learning, creating. Children will remember this winter not as suffering, but as the time they learned their people's knowledge.</p>
+                    
+                    <p>By spring, you're thinner, but your band is more skilled, more united, and carries more knowledge than before.</p>
+                `;
+                changeResource('food', 5);
+                changeResource('morale', 15);
+                changeResource('knowledge', 15);
+                changeResource('tools', 5);
+                changeRelationship("sura", 2);
+                changeRelationship("korin", 1);
+                changeRelationship("ina", 1);
+                gameState.innovations.push('Winter knowledge transmission traditions');
+            }
+            break;
+    }
+    
+    // FOOD SCARCITY CONSEQUENCES
+    let foodWarning = '';
+    if (gameState.food < 50) {
+        changeResource('morale', -10);
+        foodWarning = '<p style="color: #dc2626; font-weight: bold; margin-top: 15px;">⚠️ Food scarcity is affecting morale. The band is hungry and anxious.</p>';
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>The Winter Council</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}${foodWarning}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Winter was a crucial time for knowledge transmission in Paleolithic societies. With limited outdoor activity, people spent long hours in close quarters. This time was used for teaching tool-making, telling stories that encoded survival information, planning future seasons, and strengthening social bonds. Archaeological sites show evidence of winter craft production—tools made during cold months when hunting and gathering were limited. Successful bands didn't just survive winter—they used it productively.
+        </div>
+        <button onclick="showPassage('actThree_knowledge')">Continue</button>
+    `;
+    updateResources();
+}
+
+window.chooseCouncil = chooseCouncil;
+
+passages.actThree_knowledge = () => `
+    <h1>Knowledge for Spring</h1>
+    
+    <div class="resources" id="resources"></div>
+    
+    <p>As winter slowly begins to release its grip, the band gathers one final time. The days are growing longer. Ice on the river is starting to break. Birds are returning.</p>
+    
+    <p>Old Sura addresses the group: "We have survived this winter. But surviving isn't enough. Our people endure because we remember, because we pass on what we've learned. What knowledge from this season should we preserve? What lesson should we ensure the children carry forward?"</p>
+    
+    <p>This is about more than this winter—it's about what your band will remember for generations.</p>
+    
+    <p>You must choose what knowledge to emphasize. Each choice represents what lesson will be strongest in the band's collective memory.</p>
+    
+    <div class="choice" onclick="chooseKnowledge('cooperation')">
+        <strong>The lesson of cooperation</strong><br>
+        Emphasize how the band survived by working together, each person contributing their skills, decisions made collectively. Teach children that no one survives alone.
+    </div>
+    
+    <div class="choice" onclick="chooseKnowledge('adaptation')">
+        <strong>The lesson of adaptation</strong><br>
+        Emphasize how the band responded to unexpected challenges, changed plans when needed, innovated solutions. Teach children that flexibility is survival.
+    </div>
+    
+    <div class="choice" onclick="chooseKnowledge('observation')">
+        <strong>The lesson of observation</strong><br>
+        Emphasize how reading nature's signs, understanding patterns, and patient watching gave the band crucial advantages. Teach children to be students of the world.
+    </div>
+    
+    <div class="choice" onclick="chooseKnowledge('memory')">
+        <strong>The lesson of memory</strong><br>
+        Emphasize how Old Sura's memories, passed-down stories, and accumulated knowledge saved the band. Teach children that wisdom is preserved in stories and must be honored.
+    </div>
+`;
+
+function chooseKnowledge(choice) {
+    let outcome = '';
+    gameState.decisionLog.knowledgeChoice = choice; // Log choice
+    
+    switch(choice) {
+        case 'cooperation':
+            outcome = `
+                <h2>The Band's Strength</h2>
+                <p>You gather the children and tell them: "Remember this winter not for the cold, but for how we faced it together. Remember how Tarak's hunting fed us, Mira's plant knowledge preserved us, Korin's tools protected us, and Sura's wisdom guided us."</p>
+                
+                <p>"Each person was essential. The strongest hunter cannot make tools. The wisest elder cannot hunt alone. We survive because we are we, not I."</p>
+                
+                <p>The children recite it back: "We are we, not I." This will be passed down, a core principle of your band's identity.</p>
+            `;
+            gameState.storiesPreserved.push('The Lesson of Cooperation - We are We, not I');
+            changeResource('knowledge', 15);
+            changeResource('morale', 10);
+            break;
+            
+        case 'adaptation':
+            outcome = `
+                <h2>The Flexible Mind</h2>
+                <p>You explain: "This winter taught us that plans change. We thought we knew when winter would come—we were wrong. We thought we knew where to shelter—we had to adapt. Those who survive aren't those with perfect plans, but those who can change their plans."</p>
+                
+                <p>${gameState.toolInnovation ? 'You reference Korin\'s tool innovations: "New methods aren\'t just interesting—they\'re survival strategies."' : ''} The children will remember that being stuck in old ways is dangerous.</p>
+            `;
+            gameState.storiesPreserved.push('The Lesson of Adaptation - Change When the World Changes');
+            changeResource('knowledge', 15);
+            break;
+            
+        case 'observation':
+            outcome = `
+                <h2>The Watching Eyes</h2>
+                <p>You teach: "Everything speaks to those who watch and listen. The mammoth's path told us where they were going. The nut trees showed us when they were ripe. The sky warned us winter was coming early—we just had to see the signs."</p>
+                
+                <p>"Your eyes and minds are your first tools. Learn to observe. Learn to notice. Learn to understand what the world is telling you."</p>
+                
+                <p>The children practice observation exercises: what bird makes that call? What plant is this? What do those tracks mean? Skills that will serve them forever.</p>
+            `;
+            gameState.storiesPreserved.push('The Lesson of Observation - The World Speaks to Those Who Watch');
+            changeResource('knowledge', 15);
+            break;
+            
+        case 'memory':
+            outcome = `
+                <h2>The Preserved Wisdom</h2>
+                <p>You honor the elders: "Old Sura remembered caves from forty winters ago. That memory saved us. Your grandmother's stories about early winters helped us prepare. Every elder carries knowledge that took lifetimes to gather."</p>
+                
+                <p>"When elders speak, listen. When they tell old stories, remember them. You are not just living your own life—you are carrying forward the accumulated wisdom of everyone who came before you."</p>
+                
+                <p>The children look at Old Sura with new respect. She smiles: "And someday, you will be the elders, carrying these stories forward."</p>
+            `;
+            gameState.storiesPreserved.push('The Lesson of Memory - Honor Those Who Remember');
+            changeResource('knowledge', 18);
+            changeResource('morale', 8);
+            changeRelationship("sura", 2);
+            break;
+    }
+    
+    document.getElementById('passage').innerHTML = `
+        <h1>Knowledge for Spring</h1>
+        <div class="resources" id="resources"></div>
+        <div class="outcome">${outcome}</div>
+        <div class="insight">
+            <strong>Archaeological Evidence:</strong> Paleolithic peoples had no writing, yet they preserved and accumulated complex knowledge across millennia. This was accomplished through oral tradition, teaching, and embodied practice. What was remembered and emphasized shaped each band's culture and survival strategies. Different bands likely emphasized different values based on their experiences, creating cultural diversity even in similar environmental conditions. The ability to extract lessons from experience and pass them to future generations was humanity's survival advantage.
+        </div>
+        <button onclick="showPassage('epilogue')">See Spring Arrive</button>
+    `;
+    updateResources();
+}
+
+window.chooseKnowledge = chooseKnowledge;
+
+// Export functionality
+function exportGameData() {
+    const studentName = document.getElementById('studentNameInput')?.value || 'Anonymous';
+    
+    // Calculate play time
+    const playTime = Math.round((Date.now() - gameState.sessionStart) / 1000 / 60); // minutes
+    
+    // Determine survival category
+    const avgResources = (gameState.food + gameState.tools + gameState.morale + gameState.knowledge) / 4;
+    let survivalCategory = '';
+    if (avgResources > 60 && gameState.deaths === 0) {
+        survivalCategory = 'Thriving Spring';
+    } else if (avgResources > 40 || gameState.deaths <= 1) {
+        survivalCategory = 'Hard-Won Survival';
+    } else {
+        survivalCategory = 'Costly Survival';
+    }
+    
+    // Helper function to get role name
+    const getRoleName = (role) => {
+        const names = {
+            hunter: 'Arun (Young Hunter)',
+            gatherer: 'Lira (Experienced Gatherer)',
+            toolmaker: 'Daren (Tool Maker)',
+            elder: 'Elan (Elder Storyteller)'
+        };
+        return names[role] || role;
+    };
+    
+    // Helper function for relationship status
+    const getRelStatus = (val) => {
+        if (val >= 2) return 'Strong';
+        if (val === 1) return 'Positive';
+        if (val === 0) return 'Neutral';
+        if (val === -1) return 'Strained';
+        return 'Damaged';
+    };
+    
+    // Import jsPDF from CDN (will be loaded in <head>)
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 20;
+    const usableWidth = pageWidth - (margin * 2);
+    let yPos = margin;
+    
+    // ===== PAGE 1: GAME RESULTS =====
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(139, 111, 71); // #8b6f47
+    doc.setFont('helvetica', 'bold');
+    doc.text('THE BAND SURVIVES', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 8;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Paleolithic Survival Simulation - Game Results', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 12;
+    
+    // Student Info
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Student:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(studentName, margin + 25, yPos);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('Role Played:', pageWidth / 2, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(getRoleName(gameState.role), pageWidth / 2 + 30, yPos);
+    
+    yPos += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Session:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(gameState.sessionId.substring(0, 8), margin + 25, yPos);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text('Play Time:', pageWidth / 2, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${playTime} minutes`, pageWidth / 2 + 30, yPos);
+    
+    yPos += 12;
+    
+    // Survival Outcome
+    doc.setFontSize(12);
+    doc.setTextColor(139, 111, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Survival Outcome', margin, yPos);
+    
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    const outcomeText = `${survivalCategory}`;
+    doc.text(outcomeText, margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    const outcomeDetails = ` — Your band ended winter with ${gameState.deaths} death(s) and ${gameState.innovations.length + gameState.storiesPreserved.length} cultural achievement(s).`;
+    doc.text(outcomeDetails, margin + doc.getTextWidth(outcomeText), yPos);
+    
+    yPos += 12;
+    
+    // Final Resources
+    doc.setFontSize(12);
+    doc.setTextColor(139, 111, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Final Band Resources', margin, yPos);
+    
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    
+    // Resources table
+    const resourceData = [
+        ['Food', gameState.food.toString(), 'Tools', gameState.tools.toString()],
+        ['Morale', gameState.morale.toString(), 'Knowledge', gameState.knowledge.toString()],
+        ['Average', Math.round(avgResources).toString(), '', '']
+    ];
+    
+    doc.autoTable({
+        startY: yPos,
+        head: [],
+        body: resourceData,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 4 },
+        columnStyles: {
+            0: { fontStyle: 'bold', textColor: [90, 79, 63] },
+            1: { halign: 'center' },
+            2: { fontStyle: 'bold', textColor: [90, 79, 63] },
+            3: { halign: 'center' }
+        },
+        headStyles: { fillColor: [212, 165, 116] },
+        margin: { left: margin, right: margin }
+    });
+    
+    yPos = doc.lastAutoTable.finalY + 10;
+    
+    // Key Relationships
+    doc.setFontSize(12);
+    doc.setTextColor(139, 111, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Key Relationships', margin, yPos);
+    
+    yPos += 8;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    
+    const relText = `Tarak: ${getRelStatus(gameState.tarakRelation)} (${gameState.tarakRelation >= 0 ? '+' : ''}${gameState.tarakRelation})  •  ` +
+                   `Mira: ${getRelStatus(gameState.miraRelation)} (${gameState.miraRelation >= 0 ? '+' : ''}${gameState.miraRelation})  •  ` +
+                   `Korin: ${getRelStatus(gameState.korinRelation)} (${gameState.korinRelation >= 0 ? '+' : ''}${gameState.korinRelation})  •  ` +
+                   `Sura: ${getRelStatus(gameState.suraRelation)} (${gameState.suraRelation >= 0 ? '+' : ''}${gameState.suraRelation})  •  ` +
+                   `Ina: ${getRelStatus(gameState.inaRelation)} (${gameState.inaRelation >= 0 ? '+' : ''}${gameState.inaRelation})`;
+    
+    doc.text(relText, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 12;
+    
+    // What You Learned
+    doc.setFontSize(12);
+    doc.setTextColor(139, 111, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text('What You Learned', margin, yPos);
+    
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    
+    const lessons = {
+        cooperation: 'Cooperation — The Band is Greater Than Any Individual. Your people survived because they worked together, shared knowledge, and supported each other through hardship.',
+        adaptation: 'Adaptation — Change When the World Changes. The band that survived was the one willing to adapt strategies, try new approaches, and learn from both success and failure.',
+        memory: 'Memory & Tradition — Stories Preserve What Matters. By remembering the past, teaching the young, and passing on knowledge, your band ensured their wisdom would outlive them.',
+        balance: 'Balance — All Things in Moderation. Survival required balancing risk and caution, individual needs and collective welfare, tradition and innovation.'
+    };
+    
+    const knowledgeChoice = gameState.decisionLog.knowledgeChoice || 'cooperation';
+    const lessonText = lessons[knowledgeChoice] || 'The band learned the harsh lessons of survival.';
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(lessonText, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 20;
+    
+    // Cultural Achievements
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cultural Achievements & Innovations', margin, yPos);
+    
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    
+    if (gameState.innovations.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('Innovations:', margin, yPos);
+        yPos += 4;
+        doc.setFont('helvetica', 'normal');
+        gameState.innovations.forEach(innovation => {
+            doc.text(`• ${innovation}`, margin + 5, yPos, { maxWidth: usableWidth - 5 });
+            yPos += 4;
+        });
+        yPos += 2;
+    }
+    
+    if (gameState.storiesPreserved.length > 0) {
+        doc.setFont('helvetica', 'bold');
+        doc.text('Stories Preserved:', margin, yPos);
+        yPos += 4;
+        doc.setFont('helvetica', 'normal');
+        gameState.storiesPreserved.forEach(story => {
+            doc.text(`• ${story}`, margin + 5, yPos, { maxWidth: usableWidth - 5 });
+            yPos += 4;
+        });
+    }
+    
+    if (gameState.innovations.length === 0 && gameState.storiesPreserved.length === 0) {
+        doc.text('Your band focused on survival and preserved no new innovations.', margin, yPos);
+    }
+    
+    // ===== PAGE 2: DISCUSSION QUESTIONS =====
+    doc.addPage();
+    yPos = margin;
+    
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(139, 111, 71);
+    doc.setFont('helvetica', 'bold');
+    doc.text('THE BAND SURVIVES', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 8;
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Discussion Questions', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 10;
+    
+    // Header
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Name: ________________  Role: ${getRoleName(gameState.role)}  Score: ${Math.round(avgResources)}`, margin, yPos);
+    
+    yPos += 8;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.text('Answer the questions below clearly. You will discuss your responses with classmates and submit this page.', margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 12;
+    
+    // Question 1: Resource Priorities
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(90, 79, 63);
+    doc.text('1. RESOURCE PRIORITIES & SURVIVAL', margin, yPos);
+    
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    const q1 = `Which resource (Food: ${gameState.food}, Tools: ${gameState.tools}, Morale: ${gameState.morale}, Knowledge: ${gameState.knowledge}) did you prioritize most, and why? Looking at your final scores, did your strategy work? If you played again, what would you change?`;
+    doc.text(q1, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 18;
+    // Lines for response
+    for (let i = 0; i < 3; i++) {
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 5;
+    }
+    
+    yPos += 4;
+    
+    // Question 2: Comparing Strategies
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(90, 79, 63);
+    doc.text('2. COMPARING STRATEGIES (Group Discussion)', margin, yPos);
+    
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    const q2 = "Compare your results with 2-3 classmates: Who survived with the most/least resources? Who took the biggest risks? Did they pay off? Did anyone's band merge with neighbors? How did that affect their outcome? What patterns do you notice across different playthroughs?";
+    doc.text(q2, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 20;
+    // Lines for response
+    for (let i = 0; i < 5; i++) {
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 5;
+    }
+    
+    yPos += 4;
+    
+    // Question 3: Risk vs Safety
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(90, 79, 63);
+    doc.text('3. RISK VS. SAFETY IN DECISION-MAKING', margin, yPos);
+    
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    
+    // Build personalized risk question
+    let riskyChoices = [];
+    if (gameState.decisionLog.mammoth === 'hunt' || gameState.decisionLog.mammoth === 'split') {
+        const result = gameState.decisionLog.mammothSuccess ? 'succeeded' : 'failed';
+        riskyChoices.push(`${gameState.decisionLog.mammoth} mammoth (${result})`);
+    }
+    if (gameState.shelterChoice === 'caves') {
+        const result = gameState.decisionLog.shelterSuccess ? 'succeeded' : 'failed';
+        riskyChoices.push(`caves shelter (${result})`);
+    }
+    if (gameState.decisionLog.councilChoice === 'aggressive') {
+        const result = gameState.decisionLog.councilSuccess ? 'succeeded' : 'failed';
+        riskyChoices.push(`aggressive winter (${result})`);
+    }
+    
+    let q3;
+    if (riskyChoices.length > 0) {
+        q3 = `You made risky decisions: ${riskyChoices.join(', ')}. Did these risks pay off? What does this teach us about how Paleolithic people balanced risk and caution?`;
+    } else {
+        q3 = "Describe one risky decision you made (mammoth hunt, split band, caves shelter, aggressive winter). Did it succeed or fail? What does this teach us about how Paleolithic people balanced risk and caution?";
+    }
+    
+    doc.text(q3, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 18;
+    // Lines for response
+    for (let i = 0; i < 3; i++) {
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 5;
+    }
+    
+    yPos += 4;
+    
+    // Question 4: Surplus & Inequality
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(90, 79, 63);
+    doc.text('4. SURVIVAL, SURPLUS, AND INEQUALITY', margin, yPos);
+    
+    yPos += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    const q4 = `Your band ended with an average of ${Math.round(avgResources)} resources. Imagine if you had TWICE the food—what would change? Would some people specialize full-time in art, religion, or leadership? Would everyone share equally? This leads to our next topic: the Neolithic transition and the origins of social hierarchy.`;
+    doc.text(q4, margin, yPos, { maxWidth: usableWidth });
+    
+    yPos += 20;
+    // Lines for response
+    for (let i = 0; i < 3; i++) {
+        doc.line(margin, yPos, pageWidth - margin, yPos);
+        yPos += 5;
+    }
+    
+    // Save PDF
+    const filename = `TheBandSurvives_${studentName.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+    doc.save(filename);
+    
+    alert('PDF exported! Print this document and bring it to class for discussion.');
+}
+
+function getRelationshipStatus(value) {
+    if (value > 0) return 'Strengthened';
+    if (value < 0) return 'Strained';
+    return 'Neutral';
+}
+
+window.exportGameData = exportGameData;
+
+passages.epilogue = () => {
+    let survivalAssessment = '';
+    let culturalOutcome = '';
+    
+    // Calculate overall outcome
+    const avgResources = (gameState.food + gameState.tools + gameState.morale + gameState.knowledge) / 4;
+    
+    if (avgResources > 60 && gameState.deaths === 0) {
+        survivalAssessment = `
+            <h2>Thriving Spring</h2>
+            <p>When the snow finally melts, your band emerges strong. Food stores lasted, tools remained functional, and spirits stayed high through the dark months. No one was lost. The children are healthy, the adults eager to return to spring activities.</p>
+            
+            <p>More than surviving, you thrived. Your band is tighter-knit, more skilled, and carrying more knowledge than when winter began. ${gameState.tradedWithNeighbors && gameState.decisionLog.neighborChoice === 'invite' ? 'Your winter alliance with the River Band proved successful—two bands weathered the storm together, creating bonds that will last for generations. The experiment in inter-band cooperation worked.' : gameState.tradedWithNeighbors ? 'You maintained some contact with the River Band through the winter, strengthening the bonds of trade and friendship.' : ''}</p>
+        `;
+    } else if (avgResources > 40 || gameState.deaths <= 1) {
+        survivalAssessment = `
+            <h2>Hard-Won Survival</h2>
+            <p>Spring arrives to find your band battered but intact. ${gameState.deaths > 0 ? `You lost ${gameState.deaths} member${gameState.deaths > 1 ? 's' : ''} to the harsh winter—painful losses that will be mourned.` : 'Everyone survived, though some barely.'} Food was scarce at times, tools needed constant repair, spirits flagged.</p>
+            
+            <p>But you made it. Your people saw spring. That's what matters. The survivors carry lessons learned through hardship.</p>
+        `;
+    } else {
+        survivalAssessment = `
+            <h2>Costly Survival</h2>
+            <p>Your band survives, but at significant cost. ${gameState.deaths > 0 ? `${gameState.deaths} members were lost to cold, hunger, and hardship.` : 'Everyone is weakened.'} Food ran dangerously low. Tools broke and couldn't be adequately repaired. Morale suffered.</p>
+            
+            <p>The band will recover—humans are resilient—but this winter left scars. Next year, you'll know better. You'll prepare differently. That knowledge, hard-won, is valuable.</p>
+        `;
+    }
+    
+    // Cultural achievements
+    if (gameState.innovations.length > 3 && gameState.knowledge > 60) {
+        culturalOutcome = `
+            <p><strong>Cultural Flourishing:</strong> Your band didn't just survive—you advanced. You developed new techniques, preserved important knowledge, and strengthened your cultural identity. The innovations and lessons from this season will benefit your people for generations.</p>
+        `;
+    } else if (gameState.storiesPreserved.length > 0) {
+        culturalOutcome = `
+            <p><strong>Cultural Continuity:</strong> Despite challenges, you maintained your band's cultural practices. Stories were told, knowledge was passed down, traditions were honored. This is how human culture persists across time.</p>
+        `;
+    } else {
+        culturalOutcome = `
+            <p><strong>Cultural Survival:</strong> The focus on immediate survival meant less time for cultural activities, but your people maintained their essential identity. Sometimes, simply remembering who you are through hardship is achievement enough.</p>
+        `;
+    }
+    
+    return `
+        <h1>Spring Returns</h1>
+        
+        <div class="final-stats">
+            <h2>Final Band Status</h2>
+            <div class="stat-row">
+                <span>Food Stores:</span>
+                <span>${gameState.food}/100</span>
+            </div>
+            <div class="stat-row">
+                <span>Tool Condition:</span>
+                <span>${gameState.tools}/100</span>
+            </div>
+            <div class="stat-row">
+                <span>Band Morale:</span>
+                <span>${gameState.morale}/100</span>
+            </div>
+            <div class="stat-row">
+                <span>Knowledge Preserved:</span>
+                <span>${gameState.knowledge}/100</span>
+            </div>
+            <div class="stat-row">
+                <span>Band Members Lost:</span>
+                <span>${gameState.deaths}</span>
+            </div>
+        </div>
+        
+        ${survivalAssessment}
+        
+        ${culturalOutcome}
+        
+        <h2>What You Learned</h2>
+        
+        <p><strong>Innovations Developed:</strong></p>
+        <ul>
+            ${gameState.innovations.length > 0 ? gameState.innovations.map(i => `<li>${i}</li>`).join('') : '<li>Traditional methods maintained</li>'}
+        </ul>
+        
+        <p><strong>Stories Preserved:</strong></p>
+        <ul>
+            ${gameState.storiesPreserved.length > 0 ? gameState.storiesPreserved.map(s => `<li>${s}</li>`).join('') : '<li>Survival itself became the story</li>'}
+        </ul>
+        
+        <p><strong>Band Relationships:</strong></p>
+        <ul>
+            <li>Tarak (hunter): ${gameState.tarakRelation > 0 ? 'Strengthened' : gameState.tarakRelation < 0 ? 'Strained' : 'Neutral'}</li>
+            <li>Mira (gatherer): ${gameState.miraRelation > 0 ? 'Strengthened' : gameState.miraRelation < 0 ? 'Strained' : 'Neutral'}</li>
+            <li>Korin (tool maker): ${gameState.korinRelation > 0 ? 'Strengthened' : gameState.korinRelation < 0 ? 'Strained' : 'Neutral'}</li>
+            <li>Old Sura (elder): ${gameState.suraRelation > 0 ? 'Strengthened' : gameState.suraRelation < 0 ? 'Strained' : 'Neutral'}</li>
+            <li>Ina (young mother): ${gameState.inaRelation > 0 ? 'Strengthened' : gameState.inaRelation < 0 ? 'Strained' : 'Neutral'}</li>
+        </ul>
+        
+        <h2>Archaeological Reflection</h2>
+        
+        <div class="insight">
+            <p>The Paleolithic period lasted over 2.5 million years—more than 99% of human history. Our ancestors survived ice ages, volcanic winters, droughts, and countless challenges through:</p>
+            
+            <ul>
+                <li><strong>Cooperation:</strong> Small bands working together, sharing resources, making collective decisions</li>
+                <li><strong>Innovation:</strong> Constantly improving tools, techniques, and strategies</li>
+                <li><strong>Knowledge:</strong> Accumulating and preserving understanding through oral tradition</li>
+                <li><strong>Adaptation:</strong> Responding flexibly to changing conditions</li>
+                <li><strong>Social bonds:</strong> Building networks across bands, helping each other</li>
+            </ul>
+            
+            <p>These weren't "primitive" people struggling in ignorance. They were sophisticated, skilled, thoughtful humans who understood their environment deeply and survived through intelligence, cooperation, and cultural knowledge that took thousands of generations to accumulate.</p>
+            
+            <p>You've experienced just one autumn and winter. Your ancestors did this for over 100,000 years.</p>
+        </div>
+        
+        <h2>What Surprised You?</h2>
+        
+        <p>Reflect on your experience playing "The Band Survives":</p>
+        <ul>
+            <li>What decisions were harder than you expected?</li>
+            <li>What aspects of Paleolithic life seemed more sophisticated than you initially thought?</li>
+            <li>How did cooperation and social bonds matter in ways you didn't anticipate?</li>
+            <li>What would you do differently if you played again?</li>
+        </ul>
+        
+        <div style="margin-top: 30px; background-color: #2a1f15; padding: 20px; border-radius: 10px; border: 2px solid #8b6f47;">
+            <h2 style="color: #d4a574; margin-top: 0;">Export Your Game for Class Discussion</h2>
+            
+            <div style="margin: 15px 0;">
+                <label style="display: block; color: #c4956c; margin-bottom: 5px; font-weight: bold;">Your Name:</label>
+                <input type="text" id="studentNameInput" placeholder="Enter your name" 
+                       style="width: 100%; padding: 10px; background-color: #3d3426; color: #e8dcc4; 
+                              border: 1px solid #8b6f47; border-radius: 5px; font-family: Georgia, serif;">
+            </div>
+            
+            <div style="margin: 15px 0;">
+                <label style="display: block; color: #c4956c; margin-bottom: 5px; font-weight: bold;">
+                    Post-Game Reflection (Optional - for class discussion):
+                </label>
+                <textarea id="reflectionText" placeholder="What surprised you most about Paleolithic life? What would you do differently?" 
+                          style="width: 100%; height: 100px; padding: 10px; background-color: #3d3426; color: #e8dcc4; 
+                                 border: 1px solid #8b6f47; border-radius: 5px; font-family: Georgia, serif; resize: vertical;"></textarea>
+            </div>
+            
+            <button onclick="exportGameData()" 
+                    style="width: 100%; background-color: #8b6f47; color: #e8dcc4; border: 2px solid #d4a574; 
+                           padding: 15px 24px; font-size: 1.1em; border-radius: 5px; cursor: pointer; 
+                           margin: 10px 0; font-family: 'Georgia', serif; font-weight: bold;">
+                <i class="fas fa-download"></i> Download Discussion Sheet (PDF)
+            </button>
+            
+            <p style="font-size: 0.9em; color: #a8a29e; font-style: italic; margin-top: 10px;">
+                This will download a JSON file containing all your decisions, outcomes, and reflections. 
+                Upload this file to Canvas or bring it to class for discussion about decision-making strategies and Paleolithic life.
+            </p>
+        </div>
+        
+        <p style="margin-top: 30px; font-style: italic; color: #c4956c;">Thank you for experiencing the world of our Paleolithic ancestors. Their wisdom, courage, and cooperation echo in us still.</p>
+        
+        <button onclick="location.reload()">Play Again</button>
+    `;
+};
+
+// Initialize game
+showPassage('start');
+</script>
+</body>
+</html>
